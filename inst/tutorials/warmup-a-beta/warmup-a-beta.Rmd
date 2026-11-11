@@ -1,0 +1,475 @@
+---
+title: "Warmup A: a Beta distribution is a belief about a proportion"
+output:
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+description: >
+  Shapes of Beta densities, mean / median / mode, a + b as a prior sample size,
+  and conjugate updating. Preparation for the screenbayes hackathon (Team 1).
+tutorial:
+  id: "edu.bst260.screenbayes.warmup-a-beta"
+  version: 1.0
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+library(ggplot2)
+knitr::opts_chunk$set(echo = FALSE)
+tutorial_options(exercise.timelimit = 30)
+```
+
+## Why this tutorial
+
+In the screening problems so far, the sensitivity of a test was a single number such
+as 0.95. Now we admit that we are **not sure** of that number, and we describe our
+uncertainty with a probability distribution on the interval from 0 to 1. The standard
+choice is the **Beta distribution**, written Beta($a$, $b$).
+
+This warmup uses only base R and `ggplot2`. You do not need the `screenbayes` functions
+(you will write some of them in the hackathon!). Work through it at your own pace:
+
+- Every section has **exercises** (run, edit, and re-run the code), a **hint** button and a
+  **solution** button. Try before you peek.
+- Before you run each exercise, **predict** what will happen. The surprise is where the learning is.
+- There is no grade. Use the quizzes to check that you understand.
+
+Roughly 40 minutes.
+
+## 1. What does a Beta distribution look like?
+
+### Looking at shapes
+
+The density of Beta($a$, $b$) on $(0, 1)$ is proportional to $x^{a-1}(1-x)^{b-1}$. In R:
+`dbeta(x, a, b)`. Run this code to draw Beta(2, 5):
+
+```{r shape1, exercise=TRUE, exercise.lines=4}
+curve(dbeta(x, 2, 5), from = 0, to = 1,
+      xlab = "proportion", ylab = "density")
+```
+
+Now **edit the numbers**. Try Beta(5, 2), Beta(20, 20), Beta(1, 1), Beta(1, 5), Beta(0.5, 0.5).
+Predict each before you run it.
+
+```{r shape1-hint-1}
+# Change the two numbers after `x,` : dbeta(x, a, b)
+curve(dbeta(x, 5, 2), from = 0, to = 1)
+```
+
+### Six shapes side by side
+
+The code below draws six Beta densities in one figure. Run it, then change some of the
+`(a, b)` pairs in `shapes` to test your predictions.
+
+```{r shapes, exercise=TRUE, exercise.lines=22}
+shapes <- data.frame(
+  a = c(1, 0.5, 2, 5, 20, 1),
+  b = c(1, 0.5, 5, 2, 20, 5)
+)
+x <- seq(0.002, 0.998, length.out = 400)
+
+d <- do.call(rbind, lapply(seq_len(nrow(shapes)), function(i) {
+  data.frame(x = x,
+             density = dbeta(x, shapes$a[i], shapes$b[i]),
+             shape = paste0("Beta(", shapes$a[i], ", ", shapes$b[i], ")"))
+}))
+d$shape <- factor(d$shape, levels = unique(d$shape))
+
+ggplot(d, aes(x, density)) +
+  geom_line(linewidth = 0.9) +
+  facet_wrap(~shape, scales = "free_y") +
+  labs(x = "proportion", y = "density")
+```
+
+```{r quiz-shapes}
+quiz(
+  question("Which of these densities is U-shaped (piles up near 0 and near 1)?",
+    answer("Beta(0.5, 0.5)", correct = TRUE,
+           message = "Yes: when both a and b are below 1 the density is infinite at both ends."),
+    answer("Beta(1, 1)", message = "Beta(1, 1) is flat, with no preference."),
+    answer("Beta(2, 5)", message = "That one has a hump on the left."),
+    answer("Beta(20, 20)", message = "That one is a narrow hump in the middle."),
+    allow_retry = TRUE, random_answer_order = TRUE),
+  question("Beta(1, 1) expresses which belief about a proportion?",
+    answer("Every value between 0 and 1 is equally plausible.", correct = TRUE),
+    answer("The proportion is probably 0.5.", message = "That would be a hump at 0.5, like Beta(20, 20)."),
+    answer("The proportion is probably near 0 or 1.", message = "That is the U-shape of Beta(0.5, 0.5)."),
+    allow_retry = TRUE),
+  question("How are Beta(5, 2) and Beta(2, 5) related?",
+    answer("Mirror images of each other about 0.5.", correct = TRUE,
+           message = "Swapping a and b replaces x by 1 - x."),
+    answer("They are identical.", message = "Look at the plot: one leans left, one leans right."),
+    answer("One is flat and the other is not.", message = "Neither is flat."),
+    allow_retry = TRUE)
+)
+```
+
+## 2. Where is the "center"? Mean, median and mode
+
+Three different numbers each answer "what is a typical value?" Take Beta(2, 12), a belief
+that a proportion is small but uncertain.
+
+### Mean, median and mode
+
+- The **mean** of Beta($a$, $b$) is $a/(a+b)$.
+- The **median** is the value $m$ with probability 1/2 on each side: `qbeta(0.5, a, b)`.
+- The **mode** is the value where the density is highest. There is a closed form,
+  but for now find it numerically: evaluate the density on a fine grid and find where it is largest
+  (`which.max()`).
+
+Fill in the missing pieces and run.
+
+```{r center, exercise=TRUE, exercise.lines=12}
+a <- 2; b <- 12
+
+mean_ab   <- ______            # a / (a + b)
+median_ab <- ______            # qbeta(0.5, a, b)
+
+grid    <- seq(0, 1, length.out = 10001)
+mode_ab <- grid[which.max(dbeta(grid, a, b))]
+
+c(mean = mean_ab, median = median_ab, mode = mode_ab)
+```
+
+```{r center-hint-1}
+mean_ab   <- a / (a + b)
+median_ab <- qbeta(0.5, a, b)
+```
+
+```{r center-solution}
+a <- 2; b <- 12
+
+mean_ab   <- a / (a + b)
+median_ab <- qbeta(0.5, a, b)
+
+grid    <- seq(0, 1, length.out = 10001)
+mode_ab <- grid[which.max(dbeta(grid, a, b))]
+
+c(mean = mean_ab, median = median_ab, mode = mode_ab)
+```
+
+```{r quiz-center}
+quiz(
+  question("For this right-skewed density, which ordering is correct?",
+    answer("mode < median < mean", correct = TRUE,
+           message = "The long right tail pulls the mean up the most, the median a bit less."),
+    answer("mean < median < mode", message = "That ordering belongs to a left-skewed density."),
+    answer("all three are equal", message = "They are equal only for symmetric single-humped densities."),
+    allow_retry = TRUE),
+  question("The mode is exactly (a - 1)/(a + b - 2) = 1/12 here. Compare with your grid answer. What is the
+            grid error?",
+    answer("Less than 0.0001, since the grid spacing is 1/10000.", correct = TRUE),
+    answer("About 0.1", message = "The grid is much finer than that."),
+    answer("The grid answer is exactly 1/12.", message = "1/12 = 0.08333..., which is not on a grid of step 0.0001."),
+    allow_retry = TRUE)
+)
+```
+
+### What happens at the edges?
+
+The formula $(a-1)/(a+b-2)$ only makes sense when $a>1$ and $b>1$. What is the "mode" when the density
+has no interior peak? Run the grid search for three cases. Predict first!
+
+```{r edges, exercise=TRUE, exercise.lines=12}
+grid <- seq(0, 1, length.out = 10001)
+grid_mode <- function(a, b) grid[which.max(dbeta(grid, a, b))]
+
+c(`Beta(1, 5)`     = grid_mode(1, 5),
+  `Beta(5, 1)`     = grid_mode(5, 1),
+  `Beta(0.5, 0.5)` = grid_mode(0.5, 0.5),
+  `Beta(1, 1)`     = grid_mode(1, 1))
+
+# Look at the density values at the end points for Beta(0.5, 0.5):
+dbeta(c(0, 0.001, 0.5, 0.999, 1), 0.5, 0.5)
+```
+
+```{r quiz-edges}
+quiz(
+  question("For Beta(1, 5) and Beta(5, 1) the grid maximum is at an end point. Why?",
+    answer("The density is monotone (decreasing, respectively increasing), so its highest point is on the boundary.",
+           correct = TRUE),
+    answer("The grid search is buggy.", message = "It works as designed. The densities really peak at the boundary."),
+    answer("The mean and the mode coincide.", message = "They do not. The mean is 1/6 for Beta(1, 5)."),
+    allow_retry = TRUE),
+  question("For Beta(0.5, 0.5) the search returns 0. Is 0 a sensible 'most plausible value'?",
+    answer("No. The density is infinite at both 0 and 1, so there is no unique mode; the search just returned the first of two ties.",
+           correct = TRUE),
+    answer("Yes. 0 is the unique mode.", message = "Look at dbeta(1, 0.5, 0.5)."),
+    answer("Yes, because of the formula (a - 1)/(a + b - 2).", message = "That formula gives -0.5 / -1 = 0.5, which is the *lowest* density here."),
+    allow_retry = TRUE),
+  question("For Beta(1, 1) the search returns 0. What is the right summary?",
+    answer("There is no unique mode: every value is equally plausible.", correct = TRUE),
+    answer("The mode is 0.", message = "which.max() returns the first of many ties."),
+    answer("The mode is 0.5.", message = "That is the mean and the median, not a mode."),
+    allow_retry = TRUE)
+)
+```
+
+> **Take-away for the hackathon.** "The mode of a Beta" needs a *case analysis* ($a>1$ or not, $b>1$ or not),
+> including a case where the right answer is "there isn't one". Remember this when you write `beta_mode()`.
+
+## 3. a + b is a prior sample size
+
+### The mean stays put while the spread shrinks
+
+Consider beliefs with the same mean 0.9 but different $n = a + b$: Beta($0.9n$, $0.1n$). The
+standard deviation of a Beta($a$, $b$) is
+
+$$
+\sqrt{\frac{a\,b}{(a+b)^2\,(a+b+1)}} .
+$$
+
+Compute the mean and standard deviation for $n = 5, 20, 100$.
+
+```{r sd, exercise=TRUE, exercise.lines=12}
+n <- c(5, 20, 100)
+a <- 0.9 * n
+b <- 0.1 * n
+
+mean_ab <- a / (a + b)
+sd_ab   <- ______   # use the formula above
+
+data.frame(n, a, b, mean = mean_ab, sd = round(sd_ab, 4))
+```
+
+```{r sd-hint-1}
+sd_ab <- sqrt(a * b / ((a + b)^2 * (a + b + 1)))
+```
+
+```{r sd-solution}
+n <- c(5, 20, 100)
+a <- 0.9 * n
+b <- 0.1 * n
+
+mean_ab <- a / (a + b)
+sd_ab   <- sqrt(a * b / ((a + b)^2 * (a + b + 1)))
+
+data.frame(n, a, b, mean = mean_ab, sd = round(sd_ab, 4))
+```
+
+```{r quiz-sd}
+quiz(
+  question("You believe the sensitivity is about 0.9 and you'd be surprised by a miss of more than 0.1 either way
+            (sd about 0.05). Which n is closest?",
+    answer("n = 5", message = "That gives sd about 0.12."),
+    answer("n = 35", correct = TRUE,
+           message = "sd = sqrt(0.9 * 0.1 / (35 + 1)) = 0.05. This is what 'prior sample size' means: roughly 35 pseudo-observations."),
+    answer("n = 100", message = "That gives sd about 0.03."),
+    answer("n = 350", message = "That is a very confident belief: sd about 0.016."),
+    allow_retry = TRUE),
+  question("If the mean is fixed at 0.9, what does larger a + b do?",
+    answer("Concentrates the belief around 0.9 (smaller spread).", correct = TRUE),
+    answer("Moves the mean toward 0.5.", message = "The mean a/(a+b) does not depend on n when a/(a+b) is held fixed."),
+    answer("Makes the density U-shaped.", message = "U-shapes need a and b below 1."),
+    allow_retry = TRUE)
+)
+```
+
+## 4. Learning from data: the conjugate update
+
+### One update
+
+An assay is tried on 10 people who truly have the condition: 7 test positive and 3 test negative. Starting
+from the belief Beta(2, 2) about the sensitivity, the posterior is
+
+$$
+\text{Beta}(a + \text{successes},\; b + \text{failures}) .
+$$
+
+Compute the posterior parameters and plot prior and posterior together.
+
+```{r update, exercise=TRUE, exercise.lines=22}
+a0 <- 2; b0 <- 2
+successes <- 7; failures <- 3
+
+a1 <- ______
+b1 <- ______
+
+x <- seq(0.001, 0.999, length.out = 500)
+d <- rbind(
+  data.frame(x, density = dbeta(x, a0, b0), which = "prior"),
+  data.frame(x, density = dbeta(x, a1, b1), which = "posterior")
+)
+
+ggplot(d, aes(x, density, linetype = which)) +
+  geom_line(linewidth = 0.9) +
+  labs(x = "sensitivity", linetype = NULL)
+```
+
+```{r update-hint-1}
+a1 <- a0 + successes
+b1 <- b0 + failures
+```
+
+```{r update-solution}
+a0 <- 2; b0 <- 2
+successes <- 7; failures <- 3
+
+a1 <- a0 + successes
+b1 <- b0 + failures
+
+x <- seq(0.001, 0.999, length.out = 500)
+d <- rbind(
+  data.frame(x, density = dbeta(x, a0, b0), which = "prior"),
+  data.frame(x, density = dbeta(x, a1, b1), which = "posterior")
+)
+
+ggplot(d, aes(x, density, linetype = which)) +
+  geom_line(linewidth = 0.9) +
+  labs(x = "sensitivity", linetype = NULL)
+```
+
+### Does the order of the data matter?
+
+Suppose the same 10 results arrive in two batches: first 3 positives and 1 negative, then 4 positives and 2
+negatives. Update after each batch and compare with the all-at-once answer.
+
+```{r sequential, exercise=TRUE, exercise.lines=14}
+a0 <- 2; b0 <- 2
+
+# batch 1: 3 positives, 1 negative
+a_1 <- ______
+b_1 <- ______
+
+# batch 2: 4 positives, 2 negatives (start from the batch-1 posterior)
+a_2 <- ______
+b_2 <- ______
+
+c(sequential_a = a_2, sequential_b = b_2, all_at_once_a = a0 + 7, all_at_once_b = b0 + 3)
+```
+
+```{r sequential-hint-1}
+a_1 <- a0 + 3
+b_1 <- b0 + 1
+# now do the same starting from a_1 and b_1
+```
+
+```{r sequential-solution}
+a0 <- 2; b0 <- 2
+
+a_1 <- a0 + 3
+b_1 <- b0 + 1
+
+a_2 <- a_1 + 4
+b_2 <- b_1 + 2
+
+c(sequential_a = a_2, sequential_b = b_2, all_at_once_a = a0 + 7, all_at_once_b = b0 + 3)
+```
+
+```{r quiz-update}
+quiz(
+  question("Why do the two routes give the same posterior?",
+    answer("Each update just adds counts to a and b, and addition does not care about the order.", correct = TRUE),
+    answer("Because the Beta distribution is symmetric.", message = "Beta(a, b) is not symmetric unless a = b, and the argument does not use symmetry."),
+    answer("Because the prior was Beta(2, 2).", message = "Any Beta prior would behave the same way."),
+    allow_retry = TRUE),
+  question("What is the posterior mean of the sensitivity after all 10 results?",
+    answer("9/14 = 0.643", correct = TRUE),
+    answer("7/10 = 0.7", message = "That is the raw proportion. The prior pulls the estimate toward 0.5."),
+    answer("2/4 = 0.5", message = "That is the prior mean."),
+    answer("9/12 = 0.75", message = "The denominator is a + b + 10 = 14."),
+    allow_retry = TRUE)
+)
+```
+
+## 5. How much does the prior matter?
+
+Compute the posterior mean $(a+s)/(a+b+s+f)$ for three priors and two datasets that have the
+same proportion of positives (70%): 7 out of 10, and 70 out of 100.
+
+```{r prior-matters, exercise=TRUE, exercise.lines=18}
+priors <- data.frame(
+  prior = c("Beta(1, 1)", "Beta(2, 2)", "Beta(20, 20)"),
+  a = c(1, 2, 20),
+  b = c(1, 2, 20)
+)
+
+post_mean <- function(a, b, s, f) ______   # (a + s) / (a + b + s + f)
+
+priors$data_7_of_10    <- post_mean(priors$a, priors$b, 7, 3)
+priors$data_70_of_100  <- post_mean(priors$a, priors$b, 70, 30)
+priors[, c("prior", "data_7_of_10", "data_70_of_100")]
+```
+
+```{r prior-matters-hint-1}
+post_mean <- function(a, b, s, f) (a + s) / (a + b + s + f)
+```
+
+```{r prior-matters-solution}
+priors <- data.frame(
+  prior = c("Beta(1, 1)", "Beta(2, 2)", "Beta(20, 20)"),
+  a = c(1, 2, 20),
+  b = c(1, 2, 20)
+)
+
+post_mean <- function(a, b, s, f) (a + s) / (a + b + s + f)
+
+priors$data_7_of_10    <- post_mean(priors$a, priors$b, 7, 3)
+priors$data_70_of_100  <- post_mean(priors$a, priors$b, 70, 30)
+priors[, c("prior", "data_7_of_10", "data_70_of_100")]
+```
+
+```{r quiz-prior}
+quiz(
+  question("Which statement matches your table?",
+    answer("With 10 observations the choice of prior changes the answer a lot; with 100 it matters much less, unless the prior is very confident.",
+           correct = TRUE),
+    answer("The posterior mean is always the raw proportion 0.7.", message = "Only in the limit of lots of data."),
+    answer("The prior matters equally for 10 and 100 observations.", message = "The data's weight grows with n; the prior's (a + b) is fixed."),
+    allow_retry = TRUE),
+  question("In words, what weight does a Beta(20, 20) prior carry compared with 10 observations?",
+    answer("Equivalent to 40 pseudo-observations: four times the weight of the data.", correct = TRUE),
+    answer("Equivalent to 20 pseudo-observations.", message = "It is a + b = 40."),
+    answer("No weight, since its mean is 0.5.", message = "A confident prior pulls hard even when its mean is unremarkable."),
+    allow_retry = TRUE)
+)
+```
+
+## 6. Putting it into a function
+
+Write a function `summarise_beta(a, b)` that returns the mean, median and mode of Beta($a$, $b$) as a
+**named** numeric vector `c(mean = , median = , mode = )`. You may assume $a>1$ and $b>1$ (so the interior
+formula for the mode applies). Test it on Beta(3, 7).
+
+```{r func, exercise=TRUE, exercise.lines=12}
+summarise_beta <- function(a, b) {
+  # your code here
+}
+
+summarise_beta(3, 7)
+```
+
+```{r func-hint-1}
+# c(mean = ..., median = ..., mode = ...)
+# mean: a / (a + b)     median: qbeta(0.5, a, b)     mode: (a - 1) / (a + b - 2)
+```
+
+```{r func-solution}
+summarise_beta <- function(a, b) {
+  c(mean   = a / (a + b),
+    median = qbeta(0.5, a, b),
+    mode   = (a - 1) / (a + b - 2))
+}
+
+summarise_beta(3, 7)
+```
+
+```{r quiz-func}
+quiz(
+  question("For Beta(3, 7) your function should return approximately:",
+    answer("mean 0.300, median 0.286, mode 0.250", correct = TRUE),
+    answer("mean 0.250, median 0.286, mode 0.300", message = "Mean and mode are swapped."),
+    answer("mean 0.300, median 0.300, mode 0.300", message = "Those would be equal only for a symmetric density."),
+    allow_retry = TRUE)
+)
+```
+
+### Where this leads
+
+In the hackathon, Team 1 turns these ideas into the package functions `beta_from_mean_n()`,
+`beta_mean()`, `beta_median()`, `beta_mode()` (all four cases!) and `update_beta()`. What you did here by
+hand (the case analysis for the mode, the pseudo-count update, and making sure the result is a *named* vector
+`c(a = , b = )`) is exactly what the tests will check.
+
+Next warmup: how to go from a belief about Se and Sp to a belief about the **PPV** by simulation (Warmup B).

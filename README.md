@@ -30,6 +30,13 @@ screenbayes::run_app()       # the app (panels say "Not yet working" until teams
 Rscript scripts/scoreboard.R   # pass/fail per team
 ```
 
+**Warmups first.** Short self-paced [learnr](https://pkgs.rstudio.com/learnr/) tutorials prepare each
+part of the hackathon (install once: `install.packages("learnr")`):
+
+```r
+learnr::run_tutorial("warmup-a-beta", package = "screenbayes")   # Beta distributions (Team 1)
+```
+
 Read **[HACKATHON.md](HACKATHON.md)** for the team assignments, the workflow and
 the schedule. The accompanying problem set is in `problem-set/`.
 
@@ -42,5 +49,7 @@ the schedule. The accompanying problem set is in `problem-set/`.
 | `inst/app/app.R` | the Shiny app |
 | `tests/testthat/` | one test file per team + an integration test |
 | `scripts/scoreboard.R` | pass/fail summary per team |
+| `scripts/check_tutorial.R` | runs a tutorial's solutions and validates its quizzes without Shiny |
+| `inst/tutorials/` | self-paced warmup tutorials (learnr), one per hackathon topic |
 | `problem-set/` | the Quarto problem set (Parts 5–6) |
 | `.github/` | CODEOWNERS, PR template, per-team CI |

@@ -7,6 +7,21 @@ test whose sensitivity and specificity are uncertain.
 You are one of six teams. Every team owns **one file** and writes the functions in it.
 The files are independent by design, so you can all work at once.
 
+## Before the hackathon: warmups
+
+Each team should have done the warmup that matches its file (everyone benefits from all of them):
+
+| Warmup | Topic | Team |
+|--------|-------|------|
+| A (`warmup-a-beta`) | Beta distributions as beliefs; mean, median, mode; `a + b` as a pseudo-count; updating | 1 |
+
+```r
+install.packages("learnr")
+learnr::run_tutorial("warmup-a-beta", package = "screenbayes")
+```
+
+(More warmups will be added: B for team 2, C and D for teams 3 and 4, E for team 4, F for team 6, G for everyone.)
+
 ## The teams
 
 | Team | Your file | You implement | Difficulty |

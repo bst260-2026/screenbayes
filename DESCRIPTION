@@ -15,6 +15,6 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Depends: R (>= 4.1.0)
 Imports: dplyr, ggplot2, MASS, shiny, stats, tibble
-Suggests: knitr, pkgload, rmarkdown, testthat (>= 3.0.0)
+Suggests: knitr, learnr, pkgload, rmarkdown, testthat (>= 3.0.0)
 Config/testthat/edition: 3
 RoxygenNote: 7.3.1
