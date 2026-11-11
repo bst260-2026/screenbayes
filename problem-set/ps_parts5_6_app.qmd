@@ -1,0 +1,334 @@
+---
+title: "Problem Set: Credal States for Sensitivity and Specificity"
+subtitle: "BST 260 — Parts 5–6: the screenbayes hackathon, then use the app (DRAFT)"
+author: "Your name here"
+date: today
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Overview
+
+In Parts 1–4 the sensitivity (Se) and specificity (Sp) of a test were treated as
+known numbers. Here we admit that we are *uncertain* about them, and express that
+uncertainty with explicit Beta distributions: our **credal state**.
+
+$$
+\text{Se} \sim \text{Beta}(a_{se}, b_{se}), \qquad
+\text{Sp} \sim \text{Beta}(a_{sp}, b_{sp}) \quad\text{(independent)},
+$$
+
+and we study the induced posterior distribution of the predictive values in a target
+population whose prevalence $\pi$ is specified:
+
+$$
+\text{PPV}(\text{Se}, \text{Sp}; \pi) = \frac{\pi\,\text{Se}}{\pi\,\text{Se} + (1-\pi)(1-\text{Sp})}.
+$$
+
+If we also observe a 2×2 table of the test against the true outcome (TP, FN among
+diseased; TN, FP among non-diseased), the Beta priors update conjugately:
+$\text{Se} \mid \text{data} \sim \text{Beta}(a_{se}+\text{TP},\, b_{se}+\text{FN})$, and
+$\text{Sp} \mid \text{data} \sim \text{Beta}(a_{sp}+\text{TN},\, b_{sp}+\text{FP})$.
+
+| Part | Idea |
+|------|------|
+| 5 | **Your team builds the components** of the `screenbayes` package and its Shiny app (class hackathon, see `HACKATHON.md`): Beta utilities, predictive values, point estimates (mean, median, MAP), interval estimates (equal-tailed, HDI, HPD region) and a plot |
+| 6 | **You use the app** to depict and explore posterior distributions, compare estimators, and choose target populations |
+
+### How this problem set is organised
+
+The code lives in the R package **screenbayes** (the repository this document sits in).
+There are six teams, and each team owns one file in `R/`:
+
+| Team | File | Functions |
+|------|------|-----------|
+| 1 | `R/team1_beta.R` | `beta_from_mean_n`, `beta_mean`, `beta_median`, `beta_mode`, `update_beta` |
+| 2 | `R/team2_predictive.R` | `ppv_fn`, `npv_fn`, `ppv_predictive` |
+| 3 | `R/team3_intervals.R` | `eti_beta`, `hdi_beta`, `eti_draws`, `hdi_draws` |
+| 4 | `R/team4_map_hpd.R` | `map_kde`, `hpd_region`, `prob_exceeds` |
+| 5 | `R/team5_populations.R` | `stratum_prevalence`, `stratum_beta`, `prev_draws` |
+| 6 | `R/team6_plot.R` | `posterior_plot` (four layers) |
+
+Section 5.*N* below belongs to team *N*: your team implements those functions
+(the tests in `tests/testthat/` tell you when you are done) and **each member
+writes up the section's questions individually**. Section 5.7 and all of Part 6 are
+individual work, using the integrated app after the hackathon.
+
+Until a function is implemented, the matching panel of the app shows a
+"Not yet working" message, so the app comes to life as teams merge.
+
+```{r setup}
+library(screenbayes)
+library(dplyr); library(ggplot2); library(tidyr)
+bw <- bw_data()
+set.seed(260)
+r3 <- function(x) round(x, 3)
+```
+
+---
+
+## Part 5. Building the components
+
+Your team works on its own section (5.*N* for team *N*). After each coding step run
+`Rscript scripts/scoreboard.R` (or `testthat::test_local(filter = "teamN")`) until your
+team's tests pass; then merge via a pull request (see `HACKATHON.md`). The questions
+are about the code your team wrote; write them up individually.
+
+### 5.1 Beta utilities
+
+**Team 1.** Implement `beta_from_mean_n()`, `beta_mean()`, `beta_median()`, `beta_mode()` and
+`update_beta()` in `R/team1_beta.R`. Read the documentation there for the edge
+cases of the mode.
+
+**Questions.**
+(a) Evaluate `beta_mode()` for Beta(1,1), Beta(1,5), Beta(5,1), Beta(0.5,0.5) and
+Beta(3,7). For each, say what the density looks like and why the mode is or
+is not a sensible "most plausible value".
+(b) `beta_from_mean_n(m, n)` describes a Beta by a mean and a *prior sample size*
+$n = a + b$. In one or two sentences, justify calling $a+b$ a sample size using what
+`update_beta()` does to $a$ and $b$.
+
+```{r p5-1}
+# your code here
+```
+
+### 5.2 Predictive values
+
+**Team 2.** Implement `ppv_fn()`, `npv_fn()` (vectorised) and `ppv_predictive()` in `R/team2_predictive.R`. The last returns
+
+$$
+P(D \mid T^+, \text{data}) = \frac{\pi\, E[\text{Se}]}{\pi\, E[\text{Se}] + (1-\pi)\, E[1-\text{Sp}]}
+$$
+
+for a **new** person who tests positive, where the expectations are taken over the
+Beta distributions for Se and Sp.
+
+**Question.** Using the law of total probability, explain in two or three sentences why
+$P(T^+ \mid D, \text{data}) = E[\text{Se} \mid \text{data}]$. Why does this make the
+predictive PPV a ratio of posterior *means* rather than the posterior mean of
+$\text{PPV}(\text{Se}, \text{Sp}; \pi)$?
+
+### 5.3 Interval estimates from a Beta, and from draws
+
+**Team 3.** Implement `eti_beta()`, `hdi_beta()`, `eti_draws()` and `hdi_draws()` in `R/team3_intervals.R`.
+
+**Questions.** For a Beta(2, 12) distribution and mass 0.90:
+(a) Report the equal-tailed interval and the HDI from `eti_beta()` / `hdi_beta()`,
+their widths, and whether each contains the mode.
+(b) Confirm with 1e5 draws that `eti_draws()` and `hdi_draws()` agree with the closed forms.
+(c) Why is the HDI shorter than the equal-tailed interval here, and why do they
+coincide for Beta(10, 10)?
+
+```{r p5-3}
+# your code here
+```
+
+### 5.4 The mode (MAP) and the HPD region from draws
+
+**Team 4.** Implement `map_kde()`, `hpd_region()` and `prob_exceeds()` in `R/team4_map_hpd.R`. The HPD
+(highest posterior density) **region** is the set of values whose density exceeds a
+threshold $c$, with $c$ chosen so that the set has posterior mass `mass`. It is the
+smallest-*size* set holding that mass, and it can have several pieces.
+
+**Questions.**
+(a) Take 1e5 draws from Beta(0.5, 0.5) and `mass = 0.5`. Report the equal-tailed
+interval, the HDI from `hdi_draws()`, and the HPD region. Which one is a sensible
+"50% credible set" for a U-shaped density?
+(b) Use `mass_in_region()` to compute the fraction of draws inside the HPD region. It
+should be a little above 0.5. Give one reason (hint: where does the kernel density
+estimate misbehave?) and propose one fix in a sentence (don't implement it).
+(c) In `hpd_region()` the grid points are ordered by *density*, not by $x$. Why?
+
+```{r p5-4}
+# your code here
+```
+
+### 5.5 Isolating target populations
+
+**Team 5.** Implement `stratum_prevalence()`, `stratum_beta()` and `prev_draws()` in `R/team5_populations.R`,
+then run `target_populations(bw)`. The provided helper `strat_counts(data, ...)` returns the size
+and the number of LBW births in a sub-population.
+
+**Questions.**
+(a) Produce a table with one row per population in `target_populations()`: its size
+$n$, the number $k$ of LBW births, and the prevalence $k/n$ from your function
+(they must agree).
+(b) For each population compute a 95% equal-tailed interval for the *prevalence*, using
+a flat Beta(1,1) prior and your `update_beta()` and `eti_beta()`. Which populations
+have prevalence so poorly determined that treating it as a known constant (as the
+app does) is questionable?
+
+```{r p5-5}
+# your code here
+```
+
+### 5.6 The plot
+
+**Team 6.** Complete the four TODO layers in `posterior_plot()` (`R/team6_plot.R`) so that the
+figure shows: the HPD region shaded, one vertical line per point estimate, bars
+showing each interval method below the curve, and (optionally) a threshold.
+
+**Question.** Run the code below, which uses the test "previous premature labour" with
+flat priors and the observed counts, in the population with prevalence 0.08. Paste the plot
+and describe in two sentences how the three point estimates and the three intervals
+compare to each other.
+
+```{r p5-6}
+k <- test_counts("ptl_pos")
+se_post <- update_beta(1, 1, k[["tp"]], k[["fn"]])
+sp_post <- update_beta(1, 1, k[["tn"]], k[["fp"]])
+d <- post_draws(20000, se_post, sp_post, prev = 0.08)
+s <- summarise_posterior(d$ppv, mass = 0.95)
+posterior_plot(d$ppv, s, xlab = "PPV at prevalence 0.08", threshold = 0.25)
+```
+
+### 5.7 Launch the app
+
+After the integration round, run `screenbayes::run_app()` (or `pkgload::load_all(); run_app()`).
+Choose "a & b", set the Se prior to $a = b = 1$, tick "Update priors with test data",
+choose "Previous premature labour", and compare the table on the *Se and Sp* tab with
+what you computed from `hdi_beta()` and `eti_beta()`. They must agree. Paste one
+screenshot of the *Posterior* tab.
+
+
+---
+
+## Part 6. Using the app
+
+In each problem **use the app** to read off the answer, then **reproduce it in code**
+with your helper functions (use `set.seed(260)` and 20,000 draws, which are the app's
+defaults). Numbers from the app and from your code should agree to about two decimals.
+
+### 6.1 Eliciting a credal state
+
+A manufacturer reports sensitivity "about 95%" for a new assay but gives no
+details. You are fairly sure of this but would be surprised if the true sensitivity were below
+0.85. Using the "mean & prior sample size" controls, find the prior sample size $n$ for which
+the lower end of the 95% equal-tailed prior interval is about 0.85, with mean 0.95.
+
+(a) Report $n$, $(a, b)$, and the prior mean, mode, equal-tailed interval and HDI. Which is
+higher: the prior mean or the prior mode? Why?
+(b) Solve for $n$ with `uniroot()` instead of the slider.
+(c) Is a prior sample size of this magnitude believable for a vague manufacturer claim? What
+would you want to know?
+
+```{r p6-1}
+# your code here
+```
+
+### 6.2 Learning from data, and prior–data conflict
+
+Use the test "previous premature labour" for LBW. The data are `test_counts("ptl_pos")`:
+TP = 18, FN = 41, TN = 118, FP = 12.
+
+(a) With flat Beta(1,1) priors for Se and Sp, report posterior mean, MAP, ETI and HDI for Se and Sp.
+(b) Now give Se the prior from 6.1 (mean 0.95, $n = 40$) and keep Sp flat. Report the posterior
+for Se. Compare its mean and its posterior standard deviation with those from (a).
+(c) The data (observed Se about 0.31) flatly contradict this prior. Yet the posterior is *narrower*
+than the flat-prior posterior. Explain why, and say what this tells you about relying on
+a Beta posterior to detect prior–data conflict.
+
+```{r p6-2}
+# your code here
+```
+
+### 6.3 One test, three target populations
+
+Keep the flat-prior posteriors for Se and Sp from 6.2(a). Evaluate the **PPV** posterior in
+three populations: the "Assumed specialised" one ($\pi = 0.015$), "Assumed US-wide"
+($\pi = 0.08$), and "Smokers" (prevalence from `stratum_prevalence()`).
+
+(a) For each, give the posterior mean, median, MAP, ETI and HDI of the PPV.
+(b) In which populations is the PPV posterior right-skewed, and in which left-skewed?
+How do you see this in the ordering of mean, median and MAP, and in the difference between ETI
+and HDI? Why does skewness change direction with prevalence?
+
+```{r p6-3}
+# your code here
+```
+
+### 6.4 Four "point estimates" of the PPV
+
+A rare-outcome screening setting: $\text{Se} \sim \text{Beta}(95, 5)$,
+$\text{Sp} \sim \text{Beta}(990, 10)$ (no data), $\pi = 0.001$. Compute, in the app and in code:
+
+1. the PPV evaluated at the MAP of Se and the MAP of Sp,
+2. the MAP of the posterior of the PPV,
+3. the posterior median of the PPV,
+4. the posterior mean of the PPV,
+5. the predictive PPV, from `ppv_predictive()`.
+
+(a) Put them in a table, in increasing order. They would all be equal if the PPV were a
+linear function of (Se, Sp). Which two quantities differ because of non-linearity of the
+*ratio*, and which two because the MAP is not invariant to a change of variable?
+(b) State in one sentence each which question each of the five answers (e.g. "what is my best guess of
+the population PPV under squared-error loss?", "what is the probability that the next positive
+person is diseased?").
+
+```{r p6-4}
+# your code here
+```
+
+### 6.5 Intervals: skewness and multimodality
+
+(a) Use the setting of 6.4. Report the 95% equal-tailed interval, HDI and HPD region of the
+PPV. Which is shortest? Is the HPD region a single piece? Which tail does the HDI cut off compared
+with the equal-tailed interval?
+(b) In the app select "a & b", set the Se prior to $a = b = 0.5$, choose the quantity "Se",
+untick data, and set the posterior mass to 0.5. Report the three interval types. What
+does the equal-tailed interval include that the HPD region excludes? Would you ever hold this prior for a
+test's sensitivity?
+(c) Increase the kernel bandwidth multiplier to 3 and then lower it to 0.3 in (b). What happens
+to the HPD region and why?
+
+```{r p6-5}
+# your code here
+```
+
+### 6.6 Mass inclusion and choosing a target population
+
+A hospital will adopt a screening policy only if it is at least 90% sure that a positive result means
+the condition is present at least 80% of the time, that is, $P(\text{PPV} \ge 0.8) \ge 0.9$.
+Take $\text{Se} \sim \text{Beta}(90, 10)$ and $\text{Sp} \sim \text{Beta}(95, 5)$ (no data).
+
+(a) Use the *Sweep over prevalence* tab (set the threshold to 0.8) to find roughly the smallest
+prevalence at which the policy is acceptable. Then compute that prevalence precisely with
+`uniroot()` on the fraction of draws with PPV $\ge 0.8$ (fix the draws first).
+(b) Which of the target populations from `target_populations(bw)` would pass? Report
+$P(\text{PPV} \ge 0.8)$ for each.
+(c) The Se and Sp used here were estimated or elicited for a general population. Give one reason
+why they might not be the same in a stratum such as "smokers" (recall Part 2).
+
+```{r p6-6}
+# your code here
+```
+
+### 6.7 (★ extension) Uncertainty in the prevalence itself
+
+The app treats the prevalence $\pi$ of a target population as known. For small strata
+this is hard to defend (5.5).
+
+(a) For each stratum in 5.5 take $\pi \sim \text{Beta}(1 + k,\, 1 + n - k)$
+and repeat 6.6 with $\pi$ random (use `post_draws()` with a *vector* `prev`: one draw of $\pi$ per
+draw of Se, Sp). Compare $P(\text{PPV}\ge 0.8)$ and the 95% HDI of the PPV with the fixed-$\pi$
+values. Does any decision from 6.6 change? Where is the effect largest, and why?
+(b) The app already has "Prevalence: known / uncertain", wired to `prev_draws()`. Turn it on for the
+hypertension stratum, with the same Se and Sp priors, and check that the *Posterior* tab agrees with your
+code in (a). (Team 5's `prev_draws()` is what makes this work.)
+
+```{r p6-7}
+# your code here
+```
+
+### 6.8 Reflection
+
+In about 150 words: a clinician asks you for a single number and an interval for the PPV of this
+test in her population. Which point estimate and which interval would you give, and why?
+What would you tell her about what the interval does and does not include?
+

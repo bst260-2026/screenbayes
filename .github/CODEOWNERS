@@ -1,0 +1,10 @@
+# Replace @YOUR-ORG/team-N with your GitHub team (or space-separated usernames).
+# GitHub then requests a review from the owning team on any PR touching its file.
+/R/team1_beta.R          @YOUR-ORG/team-1
+/R/team2_predictive.R    @YOUR-ORG/team-2
+/R/team3_intervals.R     @YOUR-ORG/team-3
+/R/team4_map_hpd.R       @YOUR-ORG/team-4
+/R/team5_populations.R   @YOUR-ORG/team-5
+/R/team6_plot.R          @YOUR-ORG/team-6
+# Everything else is maintained by the instructor
+*                        @YOUR-ORG/instructors
