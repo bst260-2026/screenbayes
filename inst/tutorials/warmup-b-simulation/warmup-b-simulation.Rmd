@@ -1,0 +1,292 @@
+---
+title: "Warmup B: from beliefs about Se, Sp and prevalence to a belief about the PPV"
+output:
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+description: >
+  Simulating the PPV when Se, Sp (and prevalence) are uncertain; plug-in vs predictive PPV
+  (Jensen); filtering data to a target population. Preparation for Teams 2 and 5.
+tutorial:
+  id: "edu.bst260.screenbayes.warmup-b-simulation"
+  version: 1.0
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+library(ggplot2)
+knitr::opts_chunk$set(echo = FALSE)
+tutorial_options(exercise.timelimit = 30)
+```
+
+## Why this tutorial
+
+You know the PPV formula from Bayes' theorem. In Warmup A you learned to describe uncertainty about a
+proportion with a Beta distribution. Here we put them together: **if Se and Sp are uncertain, what do we
+believe about the PPV?** The answer is a whole distribution, and the easiest way to see it is **simulation**.
+
+Only base R, `ggplot2` and `MASS` (for `birthwt`) are used. About 45 minutes. Predict before you run.
+
+## 1. The PPV with fixed numbers
+
+With sensitivity $Se$, specificity $Sp$ and prevalence $\pi$,
+
+$$PPV = \frac{Se\,\pi}{Se\,\pi + (1-Sp)(1-\pi)}, \qquad
+NPV = \frac{Sp\,(1-\pi)}{Sp\,(1-\pi) + (1-Se)\,\pi}.$$
+
+Fill in the blanks to write the PPV as a function. It should work on **vectors** (that is automatic if you
+only use arithmetic).
+
+```{r ppv-fn, exercise=TRUE, exercise.lines=8}
+ppv_fn <- function(se, sp, prev) {
+  true_pos  <- se * prev
+  false_pos <- ______ * (1 - prev)
+  true_pos / (true_pos + false_pos)
+}
+
+ppv_fn(se = 0.90, sp = 0.95, prev = 0.08)
+```
+
+```{r ppv-fn-hint-1}
+# False positives come from the people WITHOUT the condition (1 - prev),
+# who test positive with probability 1 - specificity.
+```
+
+```{r ppv-fn-solution}
+ppv_fn <- function(se, sp, prev) {
+  true_pos  <- se * prev
+  false_pos <- (1 - sp) * (1 - prev)
+  true_pos / (true_pos + false_pos)
+}
+
+ppv_fn(se = 0.90, sp = 0.95, prev = 0.08)
+```
+
+Because it is vectorised you can sweep prevalence in one line. Run it and look at how slowly the PPV rises.
+
+```{r ppv-sweep, exercise=TRUE, exercise.lines=10}
+ppv_fn <- function(se, sp, prev) {
+  tp <- se * prev; fp <- (1 - sp) * (1 - prev); tp / (tp + fp)
+}
+prev <- c(0.001, 0.01, 0.05, 0.08, 0.2, 0.5)
+round(data.frame(prev, ppv = ppv_fn(0.90, 0.95, prev)), 3)
+```
+
+```{r quiz-ppv}
+quiz(
+  question("With Se = 0.90, Sp = 0.95, prevalence 0.08, the PPV is closest to:",
+    answer("0.61", correct = TRUE, message = "0.072 true positives per 0.046 false positives: 0.072/(0.072+0.046)."),
+    answer("0.90", message = "That is the sensitivity, P(+ | condition). The PPV is P(condition | +)."),
+    answer("0.95", message = "That is the specificity."),
+    answer("0.08", message = "That is the prevalence, the PPV before seeing the test."),
+    allow_retry = TRUE),
+  question("Holding Se and Sp fixed, lowering the prevalence makes the PPV:",
+    answer("smaller", correct = TRUE, message = "Fewer true positives against the same false-positive rate."),
+    answer("larger"),
+    answer("unchanged", message = "Look at the sweep above."),
+    allow_retry = TRUE)
+)
+```
+
+## 2. Uncertain Se and Sp: draws from Beta distributions
+
+Suppose our belief about sensitivity is Beta(18, 2) (mean 0.90, prior sample size 20) and about specificity
+Beta(95, 5) (mean 0.95, prior sample size 100). Each *draw* is one possible pair of true values; the PPV
+computed from that pair is one possible PPV. Thousands of draws describe our belief about the PPV.
+
+```{r draws, exercise=TRUE, exercise.lines=14}
+set.seed(1)
+ppv_fn <- function(se, sp, prev) {
+  tp <- se * prev; fp <- (1 - sp) * (1 - prev); tp / (tp + fp)
+}
+n  <- 1e5
+se <- rbeta(n, 18, 2)
+sp <- rbeta(n, ______, ______)
+ppv <- ppv_fn(se, sp, prev = 0.08)
+
+mean(ppv)
+quantile(ppv, c(0.025, 0.5, 0.975))
+```
+
+```{r draws-hint-1}
+# Specificity ~ Beta(95, 5): rbeta(n, 95, 5)
+```
+
+```{r draws-solution}
+set.seed(1)
+ppv_fn <- function(se, sp, prev) {
+  tp <- se * prev; fp <- (1 - sp) * (1 - prev); tp / (tp + fp)
+}
+n  <- 1e5
+se <- rbeta(n, 18, 2)
+sp <- rbeta(n, 95, 5)
+ppv <- ppv_fn(se, sp, prev = 0.08)
+
+mean(ppv)
+quantile(ppv, c(0.025, 0.5, 0.975))
+```
+
+A picture of the belief about the PPV, with the plug-in value (0.61) marked:
+
+```{r draws-plot, exercise=TRUE, exercise.lines=12}
+set.seed(1)
+ppv_fn <- function(se, sp, prev) {
+  tp <- se * prev; fp <- (1 - sp) * (1 - prev); tp / (tp + fp)
+}
+ppv <- ppv_fn(rbeta(1e5, 18, 2), rbeta(1e5, 95, 5), 0.08)
+ggplot(data.frame(ppv), aes(ppv)) +
+  geom_histogram(bins = 60) +
+  geom_vline(xintercept = ppv_fn(0.90, 0.95, 0.08), linetype = 2) +
+  labs(x = "PPV")
+```
+
+```{r quiz-draws}
+quiz(
+  question("The 95% interval for the PPV is roughly (0.43, 0.83), far wider than the uncertainty in Sp (0.90 to 0.98) might suggest. Why?",
+    answer("At 8% prevalence the PPV is very sensitive to the false-positive rate (1 - Sp), which is small and uncertain in relative terms.", correct = TRUE,
+           message = "1 - Sp ranges from about 0.017 to 0.10, a sixfold range, and it is multiplied by the 92% who are healthy."),
+    answer("Because simulation always adds noise.", message = "With 100,000 draws the Monte Carlo error is tiny."),
+    answer("Because the Beta distribution is skewed.", message = "Skewness is not the main driver."),
+    allow_retry = TRUE)
+)
+```
+
+## 3. Mean of the PPV is not the PPV of the means
+
+Three different numbers are all called "the PPV" in casual speech:
+
+1. the **plug-in** PPV: put the *mean* Se and *mean* Sp into the formula;
+2. the **mean of the PPV draws**: average the PPV over our uncertainty;
+3. the **ratio of posterior means**: $E[Se]\,\pi / (E[Se]\,\pi + (1-E[Sp])(1-\pi))$.
+
+Numbers (1) and (3) are the same thing when we use the exact means. Run this and compare (2) with (1).
+
+```{r jensen, exercise=TRUE, exercise.lines=14}
+set.seed(1)
+ppv_fn <- function(se, sp, prev) {
+  tp <- se * prev; fp <- (1 - sp) * (1 - prev); tp / (tp + fp)
+}
+se <- rbeta(1e5, 18, 2); sp <- rbeta(1e5, 95, 5)
+
+plug_in    <- ppv_fn(18 / 20, 95 / 100, 0.08)
+mean_ppv   <- mean(ppv_fn(se, sp, 0.08))
+c(plug_in = plug_in, mean_of_ppv = mean_ppv)
+```
+
+The averages differ because the PPV is a **nonlinear** function of $(Se, Sp)$ (Jensen's inequality). A toy
+example: if $X$ is uniform on (1, 3) then $1/E[X] = 0.5$ but $E[1/X] = \tfrac12\ln 3 \approx 0.549$.
+
+```{r jensen-toy, exercise=TRUE, exercise.lines=6}
+set.seed(1)
+x <- runif(1e6, 1, 3)
+c(one_over_mean = 1 / mean(x), mean_of_one_over = mean(1 / x))
+```
+
+```{r quiz-jensen}
+quiz(
+  question("In this example the mean of the PPV draws (about 0.626) is a bit larger than the plug-in PPV (about 0.610). The right conclusion is:",
+    answer("The two answer different questions; the first averages the PPV over our uncertainty, the second ignores the uncertainty.", correct = TRUE),
+    answer("One of them must be a coding error.", message = "Both are correct computations; check the toy example."),
+    answer("Simulation error, they are really the same.", message = "With 100,000 draws the gap is real."),
+    allow_retry = TRUE),
+  question("The package function `ppv_predictive()` (Team 2) returns the *ratio of posterior means*. Compared with the mean of the PPV draws it:",
+    answer("answers a slightly different question, which is why we keep both in the app.", correct = TRUE),
+    answer("is always exactly equal.", message = "Only for linear functions. The PPV is not linear."),
+    answer("is always larger.", message = "The direction depends on the shape of the function and the spread of the beliefs."),
+    allow_retry = TRUE)
+)
+```
+
+## 4. Target populations: filtering the data
+
+Prevalence depends on the population you screen. With `MASS::birthwt` we can count low-birth-weight
+babies among mothers who smoked and did not smoke. (Team 5 writes the package versions of this.)
+
+```{r strata, exercise=TRUE, exercise.lines=10}
+library(MASS)
+d <- birthwt
+table(smoke = d$smoke, low = d$low)
+
+smokers <- subset(d, smoke == 1)
+c(n = nrow(smokers), cases = sum(smokers$low), prevalence = mean(smokers$low))
+```
+
+Now the Beta posterior for prevalence in each group under a flat Beta(1, 1) prior: add the cases to `a` and
+the non-cases to `b`.
+
+```{r strata-beta, exercise=TRUE, exercise.lines=14}
+library(MASS)
+d <- birthwt
+beta_for <- function(x, prior = c(a = 1, b = 1)) {
+  c(a = prior[["a"]] + sum(x$low == 1),
+    b = prior[["b"]] + sum(x$low == 0))
+}
+smokers    <- beta_for(subset(d, smoke == 1))
+nonsmokers <- beta_for(______)
+rbind(smokers, nonsmokers)
+```
+
+```{r strata-beta-hint-1}
+# nonsmokers are the rows with smoke == 0
+```
+
+```{r strata-beta-solution}
+library(MASS)
+d <- birthwt
+beta_for <- function(x, prior = c(a = 1, b = 1)) {
+  c(a = prior[["a"]] + sum(x$low == 1),
+    b = prior[["b"]] + sum(x$low == 0))
+}
+smokers    <- beta_for(subset(d, smoke == 1))
+nonsmokers <- beta_for(subset(d, smoke == 0))
+rbind(smokers, nonsmokers)
+```
+
+```{r quiz-strata}
+quiz(
+  question("Among the 74 smoking mothers, 30 had a low-birth-weight baby. With a Beta(1, 1) prior the posterior is:",
+    answer("Beta(31, 45)", correct = TRUE, message = "a = 1 + 30, b = 1 + 44."),
+    answer("Beta(30, 44)", message = "Don't forget the prior pseudo-counts 1 and 1."),
+    answer("Beta(31, 75)", message = "b gets the number of non-cases (44), not the total."),
+    allow_retry = TRUE)
+)
+```
+
+## 5. Putting it together: uncertain prevalence
+
+If the target population's prevalence is itself uncertain, draw it from its Beta too. Then the PPV
+draws reflect uncertainty in **all three** inputs. Complete the code and compare the interval with Section 2.
+
+```{r all-three, exercise=TRUE, exercise.lines=14}
+set.seed(1)
+ppv_fn <- function(se, sp, prev) {
+  tp <- se * prev; fp <- (1 - sp) * (1 - prev); tp / (tp + fp)
+}
+n <- 1e5
+se   <- rbeta(n, 18, 2)
+sp   <- rbeta(n, 95, 5)
+prev <- rbeta(n, ______, ______)   # smokers: Beta(31, 45)
+ppv  <- ppv_fn(se, sp, prev)
+quantile(ppv, c(0.025, 0.5, 0.975))
+```
+
+```{r all-three-solution}
+set.seed(1)
+ppv_fn <- function(se, sp, prev) {
+  tp <- se * prev; fp <- (1 - sp) * (1 - prev); tp / (tp + fp)
+}
+n <- 1e5
+se   <- rbeta(n, 18, 2)
+sp   <- rbeta(n, 95, 5)
+prev <- rbeta(n, 31, 45)
+ppv  <- ppv_fn(se, sp, prev)
+quantile(ppv, c(0.025, 0.5, 0.975))
+```
+
+### Where this leads
+
+Team 2 writes `ppv_fn`, `npv_fn` and `ppv_predictive`; Team 5 writes the filtering, `stratum_beta` and
+`prev_draws`. The app's `post_draws()` does exactly what you did in Sections 2 and 5.
+
+Next: Warmup C, intervals.

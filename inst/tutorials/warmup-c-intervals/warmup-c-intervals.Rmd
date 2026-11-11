@@ -1,0 +1,229 @@
+---
+title: "Warmup C: intervals that contain posterior mass (equal-tailed and shortest)"
+output:
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+description: >
+  Quantiles, equal-tailed intervals, highest-density (shortest) intervals for Beta
+  distributions and for draws. Preparation for Team 3.
+tutorial:
+  id: "edu.bst260.screenbayes.warmup-c-intervals"
+  version: 1.0
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+library(ggplot2)
+knitr::opts_chunk$set(echo = FALSE)
+tutorial_options(exercise.timelimit = 30)
+```
+
+## Why this tutorial
+
+A 95% **interval** for a posterior should contain 95% of the probability. But there are infinitely many
+intervals with that property! This warmup shows two standard choices and how to compute each, from a Beta
+distribution (exact) and from simulated draws.
+
+About 40 minutes.
+
+## 1. Quantiles are the inverse of the cumulative distribution
+
+`pbeta(x, a, b)` gives $P(X \le x)$ and `qbeta(p, a, b)` is its inverse. The **equal-tailed interval** (ETI)
+of mass 0.95 leaves 2.5% in each tail.
+
+```{r eti, exercise=TRUE, exercise.lines=8}
+a <- 2; b <- 12
+lower <- qbeta(0.025, a, b)
+upper <- qbeta(______, a, b)
+c(lower = lower, upper = upper)
+pbeta(upper, a, b) - pbeta(lower, a, b)   # should be 0.95
+```
+
+```{r eti-hint-1}
+# 1 - 0.025
+```
+
+```{r eti-solution}
+a <- 2; b <- 12
+lower <- qbeta(0.025, a, b)
+upper <- qbeta(0.975, a, b)
+c(lower = lower, upper = upper)
+pbeta(upper, a, b) - pbeta(lower, a, b)   # should be 0.95
+```
+
+Generalise: for any `mass`, the tails are each `(1 - mass) / 2`. Write that as a function. (This is the
+exact computation behind `eti_beta()`.)
+
+```{r eti-fn, exercise=TRUE, exercise.lines=8}
+eti_beta <- function(a, b, mass = 0.95) {
+  tail <- (1 - mass) / 2
+  c(lower = qbeta(______, a, b), upper = qbeta(1 - tail, a, b))
+}
+eti_beta(2, 12)
+eti_beta(2, 12, mass = 0.5)
+```
+
+```{r eti-fn-solution}
+eti_beta <- function(a, b, mass = 0.95) {
+  tail <- (1 - mass) / 2
+  c(lower = qbeta(tail, a, b), upper = qbeta(1 - tail, a, b))
+}
+eti_beta(2, 12)
+eti_beta(2, 12, mass = 0.5)
+```
+
+```{r quiz-eti}
+quiz(
+  question("The ETI of Beta(2, 12) is about (0.019, 0.360). The mode is 1/12 = 0.083 and the mean is 0.143. Is the mode inside the interval?",
+    answer("Yes, and so is the mean.", correct = TRUE),
+    answer("No, the interval is symmetric about the mean.", message = "ETIs are symmetric in probability (2.5% in each tail), not in distance."),
+    answer("Only the mean is inside.", message = "Both are well inside."),
+    allow_retry = TRUE)
+)
+```
+
+## 2. The same interval from draws
+
+If we only have simulated draws (as in the app, where Se, Sp and prevalence are combined), `quantile()` does
+the job. Compare the exact and the simulated ETI.
+
+```{r eti-draws, exercise=TRUE, exercise.lines=10}
+set.seed(1)
+draws <- rbeta(1e5, 2, 12)
+quantile(draws, c(0.025, 0.975))
+qbeta(c(0.025, 0.975), 2, 12)
+```
+
+```{r eti-draws-solution}
+set.seed(1)
+draws <- rbeta(1e5, 2, 12)
+quantile(draws, c(0.025, 0.975))
+qbeta(c(0.025, 0.975), 2, 12)
+```
+
+Edit the code: change `1e5` to `100` and rerun several times (remove `set.seed`). How stable is the interval
+with only 100 draws?
+
+## 3. The shortest interval (HDI)
+
+Among all intervals with 95% mass, the **highest density interval (HDI)** is the shortest one. An interval
+starting at the $p$-quantile has mass 0.95 if it ends at the $(p+0.95)$-quantile. So every candidate is
+indexed by $p \in [0, 0.05]$, and its width is
+
+$$w(p) = Q(p + 0.95) - Q(p).$$
+
+The ETI is the candidate at $p = 0.025$. Look at the width as $p$ moves:
+
+```{r width, exercise=TRUE, exercise.lines=12}
+a <- 2; b <- 12; mass <- 0.95
+p <- seq(0, 1 - mass, length.out = 200)
+w <- qbeta(p + mass, a, b) - qbeta(p, a, b)
+
+ggplot(data.frame(p, w), aes(p, w)) +
+  geom_line() +
+  geom_vline(xintercept = (1 - mass) / 2, linetype = 2) +
+  labs(x = "lower tail probability p", y = "interval width")
+```
+
+Predict first: for a symmetric Beta (say Beta(10, 10)) where would the minimum be? Change `a` and `b` to check.
+
+Now find the minimum numerically with `optimize()`:
+
+```{r hdi, exercise=TRUE, exercise.lines=14}
+a <- 2; b <- 12; mass <- 0.95
+width <- function(p) qbeta(p + mass, a, b) - qbeta(p, a, b)
+o <- optimize(width, interval = c(0, 1 - mass))
+p_star <- o$minimum
+c(lower = qbeta(p_star, a, b), upper = qbeta(p_star + mass, a, b), width = o$objective)
+```
+
+For Beta(2, 12) the HDI is about (0.005, 0.319) with width 0.314, **shorter** than the ETI (0.019, 0.360)
+with width 0.341.
+
+```{r quiz-hdi}
+quiz(
+  question("For a symmetric, unimodal distribution such as Beta(10, 10), the HDI and the ETI are:",
+    answer("the same interval.", correct = TRUE, message = "Symmetry puts the minimum of the width at p = (1 - mass)/2."),
+    answer("different, the HDI is always shorter.", message = "Only when the density is asymmetric."),
+    answer("different, the ETI is always shorter.", message = "The HDI is the shortest by definition."),
+    allow_retry = TRUE),
+  question("For Beta(2, 12), the HDI's lower end (0.005) is much closer to 0 than the ETI's (0.019). Why?",
+    answer("The density is highest near the mode and still high near 0, so including the left side is a cheap way to gain mass.", correct = TRUE,
+           message = "The HDI keeps the points of highest density; the long right tail is cut off earlier."),
+    answer("The optimizer is not accurate.", message = "It is: compare the width values."),
+    answer("The HDI is always at the left end.", message = "Not for symmetric distributions, and not for Beta(a, b) with b small."),
+    allow_retry = TRUE)
+)
+```
+
+## 4. Edge cases for the optimizer
+
+If the density is largest at 0 (as for Beta(1, 5), a decreasing density), the shortest interval starts at 0.
+The `optimize()` search over $p\in[0,1-\text{mass}]$ finds interior minima well, but a minimum at an **endpoint**
+can be missed. So the safe approach is to compare the interior optimum with the two endpoint candidates $p=0$ and
+$p = 1-\text{mass}$.
+
+```{r endpoints, exercise=TRUE, exercise.lines=16}
+hdi_beta <- function(a, b, mass = 0.95) {
+  width <- function(p) qbeta(p + mass, a, b) - qbeta(p, a, b)
+  p_int <- optimize(width, c(0, 1 - mass))$minimum
+  cand  <- c(0, p_int, 1 - mass)
+  p     <- cand[which.min(vapply(cand, width, numeric(1)))]
+  c(lower = qbeta(p, a, b), upper = qbeta(p + mass, a, b))
+}
+hdi_beta(1, 5)    # decreasing density: starts at 0
+hdi_beta(5, 1)    # increasing density: ends at 1
+hdi_beta(2, 12)
+```
+
+```{r quiz-endpoints}
+quiz(
+  question("The HDI of Beta(1, 5) (95%) has lower endpoint:",
+    answer("exactly 0", correct = TRUE, message = "The density is highest at 0, so the shortest interval starts there."),
+    answer("0.005 (the 2.5% quantile)", message = "That is the ETI lower end."),
+    answer("0.5", message = "No, that is far into the right tail."),
+    allow_retry = TRUE)
+)
+```
+
+## 5. The HDI from simulated draws
+
+With draws, sort them. Any interval containing a fraction `mass` of the draws spans `k` consecutive sorted
+values, where `k = ceiling(mass * n)`. The shortest one is the pair with the smallest gap between draw $i$ and
+draw $i + k - 1$.
+
+```{r hdi-draws, exercise=TRUE, exercise.lines=16}
+hdi_draws <- function(draws, mass = 0.95) {
+  x <- sort(draws)
+  n <- length(x)
+  k <- ceiling(mass * n)                  # number of draws inside
+  gaps <- x[k:n] - x[1:(n - k + 1)]       # width of every window of k draws
+  i <- which.min(gaps)
+  c(lower = x[i], upper = x[i + k - 1])
+}
+set.seed(1)
+draws <- rbeta(1e5, 2, 12)
+hdi_draws(draws)
+```
+
+Compare with the exact HDI from Section 3. How close are they? What happens when you reduce the sample size
+to 500?
+
+```{r quiz-hdi-draws}
+quiz(
+  question("Why do we compare windows of exactly `k` consecutive sorted draws?",
+    answer("A set of draws with fraction `mass` inside an interval is shortest when it is a block of consecutive order statistics.", correct = TRUE),
+    answer("Sorting makes the draws independent.", message = "Sorting does not change the distribution of values."),
+    answer("It is faster than `quantile()`.", message = "Speed is not the reason."),
+    allow_retry = TRUE)
+)
+```
+
+### Where this leads
+
+Team 3 writes `eti_beta`, `hdi_beta`, `eti_draws` and `hdi_draws`. The tests check that the interval contains the
+requested mass, that the HDI is never wider than the ETI, and that HDI and ETI coincide for a symmetric Beta.
+
+Next: Warmup D on why mean, median and mode are different answers to different questions.

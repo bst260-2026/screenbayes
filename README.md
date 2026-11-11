@@ -34,7 +34,9 @@ Rscript scripts/scoreboard.R   # pass/fail per team
 part of the hackathon (install once: `install.packages("learnr")`):
 
 ```r
-learnr::run_tutorial("warmup-a-beta", package = "screenbayes")   # Beta distributions (Team 1)
+learnr::run_tutorial("warmup-a-beta", package = "screenbayes")        # Beta distributions (Team 1)
+# also: warmup-b-simulation (2, 5), warmup-c-intervals (3), warmup-d-loss-shortest (1, 3, 4),
+#       warmup-e-densities (4), warmup-f-ggplot (6), warmup-g-tests-prs (everyone)
 ```
 
 Read **[HACKATHON.md](HACKATHON.md)** for the team assignments, the workflow and
@@ -50,6 +52,7 @@ the schedule. The accompanying problem set is in `problem-set/`.
 | `tests/testthat/` | one test file per team + an integration test |
 | `scripts/scoreboard.R` | pass/fail summary per team |
 | `scripts/check_tutorial.R` | runs a tutorial's solutions and validates its quizzes without Shiny |
+| `practice/` | a tiny stub + tests to rehearse the branch / test / PR workflow |
 | `inst/tutorials/` | self-paced warmup tutorials (learnr), one per hackathon topic |
 | `problem-set/` | the Quarto problem set (Parts 5–6) |
 | `.github/` | CODEOWNERS, PR template, per-team CI |

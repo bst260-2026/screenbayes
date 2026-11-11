@@ -14,13 +14,19 @@ Each team should have done the warmup that matches its file (everyone benefits f
 | Warmup | Topic | Team |
 |--------|-------|------|
 | A (`warmup-a-beta`) | Beta distributions as beliefs; mean, median, mode; `a + b` as a pseudo-count; updating | 1 |
+| B (`warmup-b-simulation`) | PPV from uncertain Se, Sp and prevalence by simulation; plug-in vs predictive PPV; filtering to a target population | 2 and 5 |
+| C (`warmup-c-intervals`) | Quantiles, equal-tailed and shortest (HDI) intervals, exact and from draws | 3 |
+| D (`warmup-d-loss-shortest`) | Mean, median and mode as minimisers of different losses; MAP is not invariant; P(value > threshold) | 1, 3, 4 |
+| E (`warmup-e-densities`) | KDE, the MAP from a KDE, edge bias, HPD level sets with several pieces | 4 |
+| F (`warmup-f-ggplot`) | Building the figure in layers: area, vlines, interval bars, annotation | 6 |
+| G (`warmup-g-tests-prs`) | Reading and writing `testthat` tests; branch / commit / PR workflow; then the `practice/` exercise | everyone |
 
 ```r
 install.packages("learnr")
-learnr::run_tutorial("warmup-a-beta", package = "screenbayes")
+learnr::run_tutorial("warmup-a-beta", package = "screenbayes")   # then -b-simulation, -c-intervals, ...
 ```
 
-(More warmups will be added: B for team 2, C and D for teams 3 and 4, E for team 4, F for team 6, G for everyone.)
+Everyone should do **G** and the short `practice/` exercise (see `practice/README.md`) before the hackathon.
 
 ## The teams
 

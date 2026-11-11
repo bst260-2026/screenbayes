@@ -1,0 +1,207 @@
+---
+title: "Warmup F: building a figure in layers with ggplot2"
+output:
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+description: >
+  Layers (area, vertical lines, interval bars, annotation), separate data per layer, groups
+  for pieces. Preparation for Team 6 (posterior_plot).
+tutorial:
+  id: "edu.bst260.screenbayes.warmup-f-ggplot"
+  version: 1.0
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+library(ggplot2)
+knitr::opts_chunk$set(echo = FALSE)
+tutorial_options(exercise.timelimit = 30)
+```
+
+## Why this tutorial
+
+Team 6's `posterior_plot()` shows a density, the high-density region shaded, markers for mean, median and MAP,
+interval bars underneath, and a threshold line. In ggplot2 each of those is a **layer**. This warmup builds that
+figure one layer at a time.
+
+About 40 minutes.
+
+## 1. A density curve
+
+We start with draws and a density data frame.
+
+```{r base, exercise=TRUE, exercise.lines=12}
+set.seed(1)
+draws <- rbeta(1e4, 2, 12)
+d <- density(draws, from = 0, to = 1, n = 512)
+dens <- data.frame(x = d$x, y = d$y)
+
+p <- ggplot(dens, aes(x, y)) +
+  geom_line() +
+  labs(x = "value", y = "density")
+p
+```
+
+## 2. Shading a region with `geom_area`
+
+`geom_area()` fills between 0 and `y`. To shade only part of the curve, give the layer its **own data**
+(a subset). Shade `x` between 0.02 and 0.30:
+
+```{r shade, exercise=TRUE, exercise.lines=16}
+set.seed(1)
+d <- density(rbeta(1e4, 2, 12), from = 0, to = 1, n = 512)
+dens <- data.frame(x = d$x, y = d$y)
+
+region <- subset(dens, x >= 0.02 & x <= ______)
+
+ggplot(dens, aes(x, y)) +
+  geom_area(data = region, alpha = 0.3) +
+  geom_line()
+```
+
+```{r shade-solution}
+set.seed(1)
+d <- density(rbeta(1e4, 2, 12), from = 0, to = 1, n = 512)
+dens <- data.frame(x = d$x, y = d$y)
+
+region <- subset(dens, x >= 0.02 & x <= 0.30)
+
+ggplot(dens, aes(x, y)) +
+  geom_area(data = region, alpha = 0.3) +
+  geom_line()
+```
+
+### Several pieces need a `group`
+
+If the region has two pieces, `geom_area` would join them with a flat strip across the gap. Give each piece
+an id and map it to `group`. Run and compare to the version without `group`.
+
+```{r pieces, exercise=TRUE, exercise.lines=20}
+set.seed(3)
+d <- density(c(rbeta(5e3, 5, 30), rbeta(5e3, 30, 5)), from = 0, to = 1, n = 512)
+dens <- data.frame(x = d$x, y = d$y)
+dens$inside <- dens$y > 0.8
+dens$piece  <- cumsum(c(TRUE, diff(dens$inside) != 0))
+region <- subset(dens, inside)
+
+ggplot(dens, aes(x, y)) +
+  geom_area(data = region, aes(group = piece), alpha = 0.3) +
+  geom_line()
+```
+
+```{r quiz-group}
+quiz(
+  question("What does `cumsum(c(TRUE, diff(inside) != 0))` produce?",
+    answer("A counter that increases every time `inside` switches between TRUE and FALSE, so each run has its own id.", correct = TRUE),
+    answer("The number of TRUE values.", message = "That would be sum(inside)."),
+    answer("A logical vector.", message = "cumsum() returns numbers."),
+    allow_retry = TRUE)
+)
+```
+
+## 3. Vertical lines for point estimates
+
+`geom_vline(xintercept = ...)` adds a vertical line. To get **different line types for different estimates and a
+legend**, put the values in a data frame and map `linetype` or `colour`.
+
+```{r vline, exercise=TRUE, exercise.lines=22}
+set.seed(1)
+draws <- rbeta(1e4, 2, 12)
+d <- density(draws, from = 0, to = 1, n = 512)
+dens <- data.frame(x = d$x, y = d$y)
+
+pts <- data.frame(
+  estimate = c("mean", "median", "MAP"),
+  value    = c(mean(draws), median(draws), dens$x[which.max(dens$y)]))
+
+ggplot(dens, aes(x, y)) +
+  geom_line() +
+  geom_vline(data = pts, aes(xintercept = value, linetype = estimate), colour = "grey30") +
+  labs(x = "value", y = "density", linetype = NULL)
+```
+
+## 4. Interval bars below the curve
+
+An interval is a horizontal segment: `geom_segment()` with `x`, `xend`, `y`, `yend`. We place the bars just below
+zero by using negative `y` values. Because the layer's data (`bars`) has no column called `y` in the base plot's
+aesthetics, set `inherit.aes = FALSE` so the layer doesn't look for the base plot's `aes(x, y)`.
+
+```{r bars, exercise=TRUE, exercise.lines=22}
+set.seed(1)
+draws <- rbeta(1e4, 2, 12)
+d <- density(draws, from = 0, to = 1, n = 512)
+dens <- data.frame(x = d$x, y = d$y)
+ymax <- max(dens$y)
+
+bars <- data.frame(
+  type  = c("ETI", "HDI"),
+  lower = c(0.019, 0.005),
+  upper = c(0.360, 0.319),
+  y     = c(-0.04, -0.08) * ymax)
+
+ggplot(dens, aes(x, y)) +
+  geom_line() +
+  geom_segment(data = bars, aes(x = lower, xend = upper, y = y, yend = y, colour = type),
+               linewidth = 2, inherit.aes = ______)
+```
+
+```{r bars-hint-1}
+# TRUE would try to use aes(x, y) from the base plot; we want FALSE
+```
+
+```{r bars-solution}
+set.seed(1)
+draws <- rbeta(1e4, 2, 12)
+d <- density(draws, from = 0, to = 1, n = 512)
+dens <- data.frame(x = d$x, y = d$y)
+ymax <- max(dens$y)
+
+bars <- data.frame(
+  type  = c("ETI", "HDI"),
+  lower = c(0.019, 0.005),
+  upper = c(0.360, 0.319),
+  y     = c(-0.04, -0.08) * ymax)
+
+ggplot(dens, aes(x, y)) +
+  geom_line() +
+  geom_segment(data = bars, aes(x = lower, xend = upper, y = y, yend = y, colour = type),
+               linewidth = 2, inherit.aes = FALSE)
+```
+
+## 5. Threshold line and a text label
+
+`annotate("text", x, y, label)` draws one label without needing a data frame. Add a dashed threshold line at
+0.2 and label it with the probability above it.
+
+```{r thresh, exercise=TRUE, exercise.lines=18}
+set.seed(1)
+draws <- rbeta(1e4, 2, 12)
+d <- density(draws, from = 0, to = 1, n = 512)
+dens <- data.frame(x = d$x, y = d$y)
+thr <- 0.2
+pr <- mean(draws > thr)
+
+ggplot(dens, aes(x, y)) +
+  geom_line() +
+  geom_vline(xintercept = thr, linetype = "dashed") +
+  annotate("text", x = thr, y = max(dens$y),
+           label = paste0("P(> ", thr, ") = ", round(pr, 3)), hjust = -0.05)
+```
+
+```{r quiz-layers}
+quiz(
+  question("A package test can check a plot by looking at the class of each layer's geom, e.g. `class(p$layers[[1]]$geom)`. Such a test of \"has an area layer\" passes if the plot:",
+    answer("contains a `geom_area()` layer somewhere.", correct = TRUE),
+    answer("has the word 'area' in its title.", message = "Titles are not layers."),
+    answer("is drawn with shading, however it was produced.", message = "The test inspects the layers, not the pixels."),
+    allow_retry = TRUE)
+)
+```
+
+### Where this leads
+
+Team 6's `posterior_plot()` stacks these layers: HPD area (with `group` for pieces), vertical lines for mean,
+median and MAP, interval bars at negative `y`, and an optional threshold line with an `annotate()` label. The tests
+look at which layers are present, so build in layers rather than as one picture.

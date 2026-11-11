@@ -1,0 +1,250 @@
+---
+title: "Warmup G: reading tests, writing a function to pass them, and the pull-request workflow"
+output:
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+description: >
+  testthat expectations, reading a failure message, test-driven development, and the git/GitHub
+  workflow used in the hackathon. For everyone.
+tutorial:
+  id: "edu.bst260.screenbayes.warmup-g-tests-prs"
+  version: 1.0
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+library(testthat)
+knitr::opts_chunk$set(echo = FALSE)
+tutorial_options(exercise.timelimit = 30)
+```
+
+## Why this tutorial
+
+In the hackathon you do not get a problem statement with an answer key. You get **tests**. A test is a small
+program that calls your function and states what must be true. When all the tests of your team pass, your part
+is done. This warmup teaches you to read tests, to write your own, and to follow the git workflow. It is for
+**everyone**, and it is the one to do before the hackathon if you do only one.
+
+About 45 minutes. A practice repository exercise follows in the folder `practice/` of the course repo.
+
+## 1. Expectations
+
+An **expectation** compares what your code returned with what you require. Run these; all should pass quietly.
+
+```{r expect, exercise=TRUE, exercise.lines=10}
+expect_equal(1 + 1, 2)
+expect_true(all(c(0.2, 0.9) < 1))
+expect_length(c(a = 1, b = 2), 2)
+expect_named(c(a = 1, b = 2), c("a", "b"))
+expect_error(stop("boom"))
+expect_equal(0.1 + 0.2, 0.3)      # floating point? still passes: why?
+```
+
+`expect_equal()` allows tiny numerical differences (a tolerance). `expect_identical()` does not.
+
+Which **expectation** would you use to say "the result is a named vector with names `a` and `b`"?
+
+```{r quiz-expect}
+quiz(
+  question("To require that a function returns exactly the names `a` and `b`:",
+    answer("`expect_named(x, c(\"a\", \"b\"))`", correct = TRUE),
+    answer("`expect_equal(x, c(\"a\", \"b\"))`", message = "That compares the values, not the names."),
+    answer("`expect_length(x, 2)`", message = "That only counts elements."),
+    allow_retry = TRUE),
+  question("A function should refuse invalid input by stopping with an error. The expectation is:",
+    answer("`expect_error(f(bad_input))`", correct = TRUE),
+    answer("`expect_false(f(bad_input))`", message = "That checks a FALSE value; stop() never returns."),
+    answer("`expect_null(f(bad_input))`", message = "Nothing is returned if an error is signalled."),
+    allow_retry = TRUE)
+)
+```
+
+## 2. `test_that()` groups expectations
+
+```{r testthat, exercise=TRUE, exercise.lines=12}
+test_that("the mean of a Beta is a / (a + b)", {
+  a <- 3; b <- 7
+  expect_equal(a / (a + b), 0.3)
+  expect_equal(a / (a + b), 0.3 + 1e-12)
+})
+```
+
+The first argument is a **description**; it is how you find the test again. Now a failing test. We wrap it in
+`try()` so that this page continues to work; in a real test file, the failure is collected and reported.
+
+```{r failing, exercise=TRUE, exercise.lines=10}
+beta_mean <- function(a, b) a / a + b     # a bug!
+
+try(
+  test_that("mean of Beta(3, 7) is 0.3", {
+    expect_equal(beta_mean(3, 7), 0.3)
+  })
+)
+```
+
+Read the message: it tells you the test description, the expectation that failed, the value your function
+produced, and the value expected. There is a bug. Operator precedence: `a / a + b` is `(a/a) + b`. Fix it in the
+exercise above (add the parentheses) and run again.
+
+```{r failing-solution}
+beta_mean <- function(a, b) a / (a + b)
+
+try(
+  test_that("mean of Beta(3, 7) is 0.3", {
+    expect_equal(beta_mean(3, 7), 0.3)
+  })
+)
+```
+
+```{r quiz-read}
+quiz(
+  question("The failure message shows `beta_mean(3, 7)` was 8 and the expected value was 0.3. The most useful next step is:",
+    answer("Compute by hand what the formula gives for a = 3 and b = 7 and compare it with the code line by line.", correct = TRUE),
+    answer("Change the expected value to 8.", message = "The test is right; the code is wrong."),
+    answer("Delete the test.", message = "Tests are the specification. Never delete them to make them pass."),
+    allow_retry = TRUE)
+)
+```
+
+## 3. Writing a function to pass the tests
+
+Here are three tests for a function `beta_cv(a, b)`, the **coefficient of variation** (standard deviation
+divided by mean) of a Beta distribution. Recall that the Beta variance is
+$ab/((a+b)^2(a+b+1))$.
+
+```{r cv-tests, eval=FALSE, echo=TRUE}
+test_that("beta_cv matches the definition", {
+  a <- 3; b <- 7
+  sd <- sqrt(a * b / ((a + b)^2 * (a + b + 1)))
+  expect_equal(beta_cv(a, b), sd / (a / (a + b)))
+})
+test_that("beta_cv is vectorised", {
+  expect_length(beta_cv(c(1, 2, 3), 5), 3)
+})
+test_that("beta_cv shrinks as the prior sample size grows", {
+  expect_lt(beta_cv(30, 70), beta_cv(3, 7))
+})
+```
+
+Write `beta_cv` so all three pass.
+
+```{r cv, exercise=TRUE, exercise.lines=24}
+beta_cv <- function(a, b) {
+  stop("TODO")
+}
+
+test_that("beta_cv matches the definition", {
+  a <- 3; b <- 7
+  sd <- sqrt(a * b / ((a + b)^2 * (a + b + 1)))
+  expect_equal(beta_cv(a, b), sd / (a / (a + b)))
+})
+test_that("beta_cv is vectorised", {
+  expect_length(beta_cv(c(1, 2, 3), 5), 3)
+})
+test_that("beta_cv shrinks as the prior sample size grows", {
+  expect_lt(beta_cv(30, 70), beta_cv(3, 7))
+})
+```
+
+```{r cv-hint-1}
+# variance <- a * b / ((a + b)^2 * (a + b + 1)); then sqrt(variance) / mean
+```
+
+```{r cv-solution}
+beta_cv <- function(a, b) {
+  m <- a / (a + b)
+  v <- a * b / ((a + b)^2 * (a + b + 1))
+  sqrt(v) / m
+}
+
+test_that("beta_cv matches the definition", {
+  a <- 3; b <- 7
+  sd <- sqrt(a * b / ((a + b)^2 * (a + b + 1)))
+  expect_equal(beta_cv(a, b), sd / (a / (a + b)))
+})
+test_that("beta_cv is vectorised", {
+  expect_length(beta_cv(c(1, 2, 3), 5), 3)
+})
+test_that("beta_cv shrinks as the prior sample size grows", {
+  expect_lt(beta_cv(30, 70), beta_cv(3, 7))
+})
+```
+
+## 4. Write your own test
+
+The best tests describe behaviour you care about, including the awkward cases. Add a fourth test to the
+exercise: for a flat Beta(1, 1), the mean is 0.5 and the variance is 1/12, so the coefficient of variation is
+$\sqrt{1/12}/0.5 \approx 0.577$.
+
+```{r own-test, exercise=TRUE, exercise.lines=14}
+beta_cv <- function(a, b) {
+  m <- a / (a + b)
+  sqrt(a * b / ((a + b)^2 * (a + b + 1))) / m
+}
+
+test_that("flat Beta(1, 1) has cv = sqrt(1/12) / 0.5", {
+  expect_equal(beta_cv(1, 1), ______)
+})
+```
+
+```{r own-test-solution}
+beta_cv <- function(a, b) {
+  m <- a / (a + b)
+  sqrt(a * b / ((a + b)^2 * (a + b + 1))) / m
+}
+
+test_that("flat Beta(1, 1) has cv = sqrt(1/12) / 0.5", {
+  expect_equal(beta_cv(1, 1), sqrt(1 / 12) / 0.5)
+})
+```
+
+```{r quiz-tdd}
+quiz(
+  question("Why do we write the expected value in a test from an independent calculation instead of copying the function's output?",
+    answer("A test that only repeats the function's answer can never fail, so it checks nothing.", correct = TRUE),
+    answer("It is shorter.", message = "Not the reason."),
+    answer("R requires it.", message = "R does not care."),
+    allow_retry = TRUE)
+)
+```
+
+## 5. The workflow in the hackathon
+
+You will work in **your team's file**, on your own **branch**, and submit a **pull request (PR)**. Order the steps by
+reading them once; you will do them on the `practice/` repository first.
+
+1. `git pull` to get the latest `main`.
+2. `git switch -c team3-hdi` creates a branch for your work.
+3. Edit **only your team's file** (`R/team3_intervals.R`). Replace the `stop("TODO...")` body with your code.
+4. Run your team's tests: `testthat::test_file("tests/testthat/test-team3-intervals.R")`, or the whole
+   suite with `devtools::test()`.
+5. `git add R/team3_intervals.R`, `git commit -m "Implement hdi_beta"`.
+6. `git push -u origin team3-hdi`.
+7. On GitHub, open a **pull request** into `main`. The checks will run automatically, and a teammate reviews.
+8. Merge when the checks pass and your reviewer approves.
+
+```{r quiz-workflow}
+quiz(
+  question("Your tests pass locally, but you notice that team 2's test fails. What do you do?",
+    answer("Nothing in their file: tell them, or read their test, but only edit your own file.", correct = TRUE),
+    answer("Fix their function in your branch so everything is green.", message = "That creates merge conflicts and hides who owns what."),
+    answer("Edit their test so it passes.", message = "Never edit a test to get green; the tests are the specification."),
+    allow_retry = TRUE),
+  question("Why a separate branch per team and a PR rather than pushing directly to `main`?",
+    answer("A PR lets the automatic checks and a reviewer look at the change before it is merged, and isolates your work from others'.", correct = TRUE),
+    answer("Git does not allow pushing to `main`.", message = "It does; our repository protects it by convention, not by magic."),
+    answer("Branches make the code run faster.", message = "No."),
+    allow_retry = TRUE),
+  question("Two teams both edit `DESCRIPTION` and both open PRs. What happens when the second is merged?",
+    answer("A merge conflict, which is why the hackathon is set up so that each team edits only its own file.", correct = TRUE),
+    answer("Git silently keeps both edits.", message = "It cannot decide which lines win; it asks you."),
+    answer("The tests fail.", message = "Tests are not involved in merging."),
+    allow_retry = TRUE)
+)
+```
+
+### Next
+
+Do the `practice/` exercise (README inside), then you are ready for the hackathon.

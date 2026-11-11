@@ -1,0 +1,153 @@
+---
+title: "Warmup D: mean, median and mode are answers to different questions"
+output:
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+description: >
+  Loss functions behind posterior mean, median and MAP; the MAP is not invariant to
+  reparameterisation; P(parameter > threshold). Preparation for Teams 1, 3 and 4.
+tutorial:
+  id: "edu.bst260.screenbayes.warmup-d-loss-shortest"
+  version: 1.0
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+library(ggplot2)
+knitr::opts_chunk$set(echo = FALSE)
+tutorial_options(exercise.timelimit = 30)
+```
+
+## Why this tutorial
+
+If you must report **one number** for an uncertain quantity, which one? It depends on how you are penalised for
+being wrong. This warmup makes that precise and also shows why the posterior mode (MAP) needs care.
+
+About 40 minutes.
+
+## 1. Choosing a number by minimising expected loss
+
+Take draws from a skewed belief, Beta(2, 12). For any guess `g`, we can compute the *average loss* over the
+draws. Try three loss functions: squared error, absolute error and 0-1 loss (counts as correct only if within
+0.01 of the truth).
+
+```{r loss, exercise=TRUE, exercise.lines=18}
+set.seed(1)
+draws <- rbeta(2e4, 2, 12)
+guess <- seq(0.01, 0.4, by = 0.005)
+
+sq  <- sapply(guess, function(g) mean((draws - g)^2))
+ae  <- sapply(guess, function(g) mean(abs(draws - g)))
+zo  <- sapply(guess, function(g) mean(abs(draws - g) > 0.01))
+
+best <- c(squared = guess[which.min(sq)],
+          absolute = guess[which.min(ae)],
+          zero_one = guess[which.min(zo)])
+best
+c(mean = 2 / 14, median = qbeta(0.5, 2, 12), mode = 1 / 12)
+```
+
+The three minimisers land (up to grid resolution and simulation noise) on the **mean**, the **median** and
+the **mode**.
+
+```{r quiz-loss}
+quiz(
+  question("Squared-error loss is minimised by the posterior:",
+    answer("mean", correct = TRUE),
+    answer("median"),
+    answer("mode"),
+    allow_retry = TRUE),
+  question("Absolute-error loss is minimised by the posterior:",
+    answer("median", correct = TRUE),
+    answer("mean"),
+    answer("mode"),
+    allow_retry = TRUE),
+  question("An all-or-nothing loss (right only if you hit the value) is minimised by the posterior:",
+    answer("mode (the MAP)", correct = TRUE),
+    answer("mean"),
+    answer("median"),
+    allow_retry = TRUE)
+)
+```
+
+## 2. They differ when the density is skewed
+
+For a symmetric density they agree. For Beta(2, 12), mean 0.143, median 0.126 and mode 0.083 are visibly
+different. Edit the code to see how they converge as the sample size `a + b` grows with the same mean.
+
+```{r converge, exercise=TRUE, exercise.lines=12}
+m <- 1 / 7                    # keep the mean fixed
+n <- c(5, 10, 20, 50, 100, 500)
+a <- m * n; b <- (1 - m) * n
+data.frame(n,
+           mean   = a / (a + b),
+           median = qbeta(0.5, a, b),
+           mode   = ifelse(a > 1 & b > 1, (a - 1) / (a + b - 2), NA))
+```
+
+(The mode formula only applies when `a > 1` and `b > 1`. Warmup A covered the other cases.)
+
+## 3. The MAP is not invariant to reparameterisation
+
+Posterior *mean* of $\theta$ and posterior *median* of $\theta$ behave sensibly if we change variables (the median
+of $\log\theta$ is the log of the median of $\theta$). The **mode does not**. Gamma(2, 1) has mode 1, mean 2,
+median 1.678. What is the mode of $\log X$?
+
+```{r mode-log, exercise=TRUE, exercise.lines=12}
+set.seed(1)
+x <- rgamma(1e6, 2, 1)
+d_x <- density(x)
+d_l <- density(log(x))
+c(mode_of_x         = d_x$x[which.max(d_x$y)],
+  log_of_mode_of_x  = log(d_x$x[which.max(d_x$y)]),
+  mode_of_log_x     = d_l$x[which.max(d_l$y)],
+  log_of_median_x   = log(median(x)),
+  median_of_log_x   = median(log(x)))
+```
+
+The mode of $\log X$ (about 0.69, which is $\log 2$) is **not** the log of the mode of $X$ (which is 0).
+
+```{r quiz-invariance}
+quiz(
+  question("You report a MAP of the PPV. A colleague reports a MAP of the log-odds of the PPV. These two MAPs:",
+    answer("generally correspond to different PPV values.", correct = TRUE,
+           message = "The density changes shape under the transformation (a Jacobian factor)."),
+    answer("always correspond to the same PPV value.", message = "That is true for the median, not for the mode."),
+    answer("are the same only when the prior is flat.", message = "A flat prior on one scale is not flat on the other."),
+    allow_retry = TRUE)
+)
+```
+
+## 4. A probability statement: P(PPV > threshold)
+
+Sometimes the number to report is not a center but a **probability**: "how sure are we that the PPV exceeds
+0.5?" With draws it is just the fraction of draws above the threshold. (Team 4's `prob_exceeds`.)
+
+```{r exceed, exercise=TRUE, exercise.lines=10}
+set.seed(1)
+ppv_fn <- function(se, sp, prev) {
+  tp <- se * prev; fp <- (1 - sp) * (1 - prev); tp / (tp + fp)
+}
+ppv <- ppv_fn(rbeta(1e5, 18, 2), rbeta(1e5, 95, 5), 0.08)
+mean(ppv > 0.5)
+mean(ppv >= 0.8)
+```
+
+Here P(PPV > 0.5) is large (about 0.9) and P(PPV >= 0.8) is small (a few percent).
+
+```{r quiz-exceed}
+quiz(
+  question("Why does `mean(ppv > 0.5)` estimate a probability?",
+    answer("`ppv > 0.5` is TRUE/FALSE for each draw, and the mean of TRUE/FALSE is the fraction TRUE.", correct = TRUE),
+    answer("`mean()` always returns a probability.", message = "It returns an average, which here happens to be a fraction."),
+    answer("Because the draws are between 0 and 1.", message = "That is irrelevant to the comparison."),
+    allow_retry = TRUE)
+)
+```
+
+### Where this leads
+
+Teams 1 and 4 write the mean, median and mode functions and `prob_exceeds`. The app puts mean, median and MAP
+on the same plot so you can *see* these differences.

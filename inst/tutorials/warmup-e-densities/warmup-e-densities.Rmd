@@ -1,0 +1,183 @@
+---
+title: "Warmup E: density estimates, the MAP from draws, and HPD regions that can have several pieces"
+output:
+  learnr::tutorial:
+    progressive: true
+    allow_skip: true
+runtime: shiny_prerendered
+description: >
+  Kernel density estimation on [0, 1], edge bias, the MAP from a KDE, level-set (HPD) regions,
+  run-length encoding of pieces. Preparation for Team 4.
+tutorial:
+  id: "edu.bst260.screenbayes.warmup-e-densities"
+  version: 1.0
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+library(ggplot2)
+knitr::opts_chunk$set(echo = FALSE)
+tutorial_options(exercise.timelimit = 30)
+```
+
+## Why this tutorial
+
+When the posterior is only available as **draws** we have no formula for the density, so we estimate it. This
+warmup builds, step by step, the ideas behind `map_kde()` and `hpd_region()`: a density estimate, its peak, and the
+set of values where the density is high.
+
+About 50 minutes.
+
+## 1. Estimating a density from draws
+
+`density()` computes a kernel density estimate (KDE) on a grid. It returns a list with grid points `x` and
+density values `y`.
+
+```{r kde, exercise=TRUE, exercise.lines=10}
+set.seed(1)
+draws <- rbeta(1e4, 2, 12)
+d <- density(draws, from = 0, to = 1, n = 512)
+str(d[c("x", "y")])
+plot(d, main = "KDE of Beta(2, 12) draws")
+curve(dbeta(x, 2, 12), add = TRUE, lty = 2)
+```
+
+The `adjust` argument multiplies the bandwidth. Try `adjust = 0.3` and `adjust = 3`: small values give a wiggly
+estimate, large values over-smooth.
+
+## 2. The MAP from a KDE
+
+The *maximum a posteriori* value is where the density peaks. On a grid, that is just `which.max()`.
+
+```{r map, exercise=TRUE, exercise.lines=10}
+set.seed(1)
+draws <- rbeta(1e4, 2, 12)
+d <- density(draws, from = 0, to = 1, n = 2048)
+map <- d$x[______(d$y)]
+c(kde_map = map, exact_mode = 1 / 12)
+```
+
+```{r map-hint-1}
+# which.max() returns the position of the largest value
+```
+
+```{r map-solution}
+set.seed(1)
+draws <- rbeta(1e4, 2, 12)
+d <- density(draws, from = 0, to = 1, n = 2048)
+map <- d$x[which.max(d$y)]
+c(kde_map = map, exact_mode = 1 / 12)
+```
+
+The KDE answer depends on `adjust` and on the sample. Rerun with `adjust = 0.3` and `set.seed(2)`, and see how much
+the estimated mode moves.
+
+## 3. Edge bias on [0, 1]
+
+A standard KDE spreads each draw over a neighbourhood, including values below 0 and above 1 that cannot occur.
+When we crop the estimate to [0, 1] (`from = 0, to = 1`) the density near the boundaries is **too low**. This matters
+for U-shaped Betas, whose density is large at the ends.
+
+```{r edge, exercise=TRUE, exercise.lines=12}
+set.seed(2)
+x <- rbeta(2e4, 0.5, 0.5)
+d <- density(x, from = 0, to = 1, n = 2048)
+plot(d, ylim = c(0, 4), main = "KDE vs true density, Beta(0.5, 0.5)")
+curve(dbeta(x, 0.5, 0.5), from = 0.001, to = 0.999, add = TRUE, lty = 2)
+c(kde_at_0 = d$y[1], true_near_0 = dbeta(0.001, 0.5, 0.5))
+```
+
+The KDE at 0 is about 1.3, while the true density is huge (it is infinite at 0).
+
+```{r quiz-edge}
+quiz(
+  question("The KDE underestimates the density near 0 for Beta(0.5, 0.5) because:",
+    answer("kernel mass leaks outside [0, 1] and is lost.", correct = TRUE),
+    answer("the sample is too small.", message = "Increasing n does not remove the bias at the boundary."),
+    answer("`density()` has a bug.", message = "It is a known limitation of kernel smoothing near a boundary."),
+    allow_retry = TRUE),
+  question("A MAP computed with `which.max()` on a KDE of Beta(0.5, 0.5) draws would be:",
+    answer("unreliable: the true density is largest at the ends, where the estimate is least accurate.", correct = TRUE),
+    answer("exactly 0.5.", message = "0.5 is the *minimum* of this density."),
+    answer("exactly 0.", message = "The true sup is at both 0 and 1; the KDE won't reveal that cleanly."),
+    allow_retry = TRUE)
+)
+```
+
+## 4. HPD regions: a level set of the density
+
+The HDI of Warmup C is an interval. The **highest posterior density (HPD) region** is more general: the set of
+values with the highest density that together contain `mass`. It is a **level set** $\{x : f(x) \ge c\}$ with $c$
+chosen so the mass is 0.95. If the density has two peaks the region can have **two pieces**.
+
+Algorithm on a grid:
+
+1. normalise the density values so they sum to 1 (each grid point carries a probability);
+2. sort the grid points from highest to lowest density;
+3. keep points until the cumulative probability reaches `mass`;
+4. mark the kept points on the original grid.
+
+```{r hpd, exercise=TRUE, exercise.lines=22}
+set.seed(3)
+draws <- c(rbeta(5e3, 5, 30), rbeta(5e3, 30, 5))     # two humps
+d <- density(draws, from = 0, to = 1, n = 2048)
+
+p    <- d$y / sum(d$y)               # probability per grid point
+ord  <- order(p, decreasing = TRUE)
+keep_n <- which(cumsum(p[ord]) >= 0.90)[1]
+keep <- logical(length(p))
+keep[ord[seq_len(keep_n)]] <- TRUE
+
+df <- data.frame(x = d$x, y = d$y, keep)
+df$piece <- cumsum(c(TRUE, diff(df$keep) != 0))   # run id; see Warmup F and the next section
+ggplot(df, aes(x, y)) +
+  geom_area(data = subset(df, keep), aes(group = piece), alpha = 0.4) +
+  geom_line()
+sum(p[keep])
+```
+
+The total mass kept should be slightly above 0.90 (the last grid point added overshoots a little).
+
+## 5. Counting pieces with `rle()`
+
+`rle()` finds **runs** of equal values. The runs of `TRUE` in `keep` are the pieces of the region. Their start
+and end grid points give the interval endpoints.
+
+```{r rle, exercise=TRUE, exercise.lines=20}
+set.seed(3)
+draws <- c(rbeta(5e3, 5, 30), rbeta(5e3, 30, 5))
+d <- density(draws, from = 0, to = 1, n = 2048)
+p <- d$y / sum(d$y)
+ord <- order(p, decreasing = TRUE)
+keep <- logical(length(p))
+keep[ord[seq_len(which(cumsum(p[ord]) >= 0.90)[1])]] <- TRUE
+
+r <- rle(keep)
+ends   <- cumsum(r$lengths)
+starts <- ends - r$lengths + 1
+region <- data.frame(lower = d$x[starts[r$values]],
+                     upper = d$x[ends[r$values]])
+region
+nrow(region)   # number of pieces
+```
+
+```{r quiz-rle}
+quiz(
+  question("For the two-humped distribution above, the 90% HPD region has:",
+    answer("two pieces, one around each hump.", correct = TRUE),
+    answer("one piece.", message = "The valley between the humps has low density, so it is excluded."),
+    answer("three pieces.", message = "Count the rows of `region`."),
+    allow_retry = TRUE),
+  question("An equal-tailed or shortest interval for this distribution would be:",
+    answer("a single interval that includes the low-density valley.", correct = TRUE),
+    answer("two intervals, like the HPD region.", message = "Intervals by definition have one piece."),
+    answer("empty.", message = "No."),
+    allow_retry = TRUE)
+)
+```
+
+### Where this leads
+
+Team 4 writes `map_kde`, `hpd_region` and `prob_exceeds`. The tests include a two-hump distribution (two pieces)
+and the unimodal case (one piece that agrees with the HDI). Problem 5.4 of the problem set returns to the
+edge-bias issue from Section 3.
