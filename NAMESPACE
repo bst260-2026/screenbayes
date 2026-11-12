@@ -36,6 +36,7 @@ export(target_populations)
 export(test_choices)
 export(test_counts)
 export(update_beta)
+export(warmups)
 import(ggplot2)
 importFrom(stats,
   dbeta,
