@@ -16,7 +16,7 @@ uncertain with a Beta(a, b) distribution.}
 }
 \value{
 A numeric vector of length \code{n}: \code{rep(prev, n)} if \code{prior} is \code{NULL},
-otherwise draws from the Beta distribution (\code{\link[stats:Beta]{stats::rbeta()}}).
+otherwise draws from the Beta distribution (\code{\link[stats:rbeta]{stats::rbeta()}}).
 }
 \description{
 Draws of the prevalence, known or uncertain

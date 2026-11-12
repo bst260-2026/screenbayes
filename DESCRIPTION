@@ -1,15 +1,16 @@
 Package: screenbayes
 Title: Bayesian Uncertainty in Screening-Test Sensitivity and Specificity
-Version: 0.0.0.9000
+Version: 0.0.1
 Authors@R: 
-    person("Instructor", "Name", email = "instructor@example.edu", role = c("aut", "cre"))
+    c(person("Vince", "Carey", email = "stvjc@channing.harvard.edu", role = c("aut", "cre")),
+      person("Claude", "Assistant", role="ctb", comment="Most tutorial content devised agentically."))
 Description: Teaching package for BST 260. Beta priors express uncertainty about
     the sensitivity and specificity of a screening test; the package computes
     posterior distributions of predictive values in target populations with
     specified prevalence, point estimates (mean, median, MAP) and interval
     estimates (equal-tailed, highest-density interval, HPD region), and ships a
     Shiny app to explore them. Students implement the components in a class
-    hackathon.
+    hackathon.  rlearn tutorials are included to solidify underlying concepts.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -17,4 +18,4 @@ Depends: R (>= 4.1.0)
 Imports: dplyr, ggplot2, MASS, shiny, stats, tibble
 Suggests: knitr, learnr, pkgload, rmarkdown, testthat (>= 3.0.0)
 Config/testthat/edition: 3
-RoxygenNote: 7.3.1
+Config/roxygen2/version: 8.1.1

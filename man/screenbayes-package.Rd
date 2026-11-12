@@ -9,7 +9,17 @@
 See \code{README.md} and \code{HACKATHON.md} in the repository.
 }
 \author{
-\strong{Maintainer}: Instructor Name \email{instructor@example.edu}
+\strong{Maintainer}: Vince Carey \email{stvjc@channing.harvard.edu}
+
+Authors:
+\itemize{
+  \item Vince Carey \email{stvjc@channing.harvard.edu}
+}
+
+Other contributors:
+\itemize{
+  \item Claude Assistant (Most tutorial content devised agentically.) [contributor]
+}
 
 }
 \keyword{internal}
